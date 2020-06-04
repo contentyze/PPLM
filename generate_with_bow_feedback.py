@@ -304,6 +304,7 @@ def full_text_generation(
         gm_scale=0.9,
         kl_scale=0.01,
         verbosity_level=REGULAR,
+        generate_unpert=False,
         **kwargs
 ):
     bow_indices = get_bag_of_words_indices(cond_text=cond_text,
@@ -313,16 +314,17 @@ def full_text_generation(
     if verbosity_level >= REGULAR:
         print("Using PPLM-BoW")
 
-    unpert_gen_tok_text, _ = generate_text_pplm(
-        model=model,
-        tokenizer=tokenizer,
-        context=context,
-        device=device,
-        length=length,
-        sample=sample,
-        perturb=False,
-        verbosity_level=verbosity_level
-    )
+    if generate_unpert:
+        unpert_gen_tok_text, _ = generate_text_pplm(
+            model=model,
+            tokenizer=tokenizer,
+            context=context,
+            device=device,
+            length=length,
+            sample=sample,
+            perturb=False,
+            verbosity_level=verbosity_level
+        )
     if device == 'cuda':
         torch.cuda.empty_cache()
 
@@ -359,7 +361,10 @@ def full_text_generation(
     if device == 'cuda':
         torch.cuda.empty_cache()
 
-    return unpert_gen_tok_text, pert_gen_tok_texts, losses_in_time
+    if generate_unpert:
+        return unpert_gen_tok_text, pert_gen_tok_texts, losses_in_time
+    else:
+        return pert_gen_tok_texts, losses_in_time
 
 
 def generate_text_pplm(
@@ -569,7 +574,7 @@ def generate_with_bow_feedback(
     # full_text_generation returns:
     # unpert_gen_tok_text, pert_gen_tok_texts, losses_in_time
     if strategy == 'base':
-        unpert_gen_tok_text, pert_gen_tok_texts, _ = full_text_generation(
+        pert_gen_tok_texts, _ = full_text_generation(
             model=model,
             cond_text=cond_text,
             tokenizer=tokenizer,
@@ -589,14 +594,15 @@ def generate_with_bow_feedback(
             gamma=gamma,
             gm_scale=gm_scale,
             kl_scale=kl_scale,
-            verbosity_level=verbosity_level
+            verbosity_level=verbosity_level,
+            generate_unpert=False
         )
     elif strategy == 'exp':
         current_length = len(tokenized_cond_text) + 1
         current_cond_text = cond_text
         current_tokenized_cond_text = tokenized_cond_text
         while current_length < length:
-            unpert_gen_tok_text, pert_gen_tok_texts, _ = full_text_generation(
+            pert_gen_tok_texts, _ = full_text_generation(
                 model=model,
                 cond_text=current_cond_text,
                 tokenizer=tokenizer,
@@ -616,7 +622,8 @@ def generate_with_bow_feedback(
                 gamma=gamma,
                 gm_scale=gm_scale,
                 kl_scale=kl_scale,
-                verbosity_level=verbosity_level
+                verbosity_level=verbosity_level,
+                generate_unpert=False,
             )
             current_length *= 2
             current_length = min(current_length, length)
@@ -625,15 +632,6 @@ def generate_with_bow_feedback(
                 tokenizer.bos_token + cond_text,
                 add_special_tokens=False
             )
-
-    # untokenize unperturbed text
-    unpert_gen_text = tokenizer.decode(unpert_gen_tok_text.tolist()[0])
-
-    if verbosity_level >= REGULAR:
-        print("=" * 80)
-    print("= Unperturbed generated text =")
-    print(unpert_gen_text)
-    print()
 
     generated_texts = []
 
@@ -674,8 +672,11 @@ def generate_with_bow_feedback(
             pass
 
         # keep the prefix, perturbed seq, original seq for each index
+        # generated_texts.append(
+        #     (tokenized_cond_text, pert_gen_tok_text, unpert_gen_tok_text)
+        # )
         generated_texts.append(
-            (tokenized_cond_text, pert_gen_tok_text, unpert_gen_tok_text)
+            (tokenized_cond_text, pert_gen_tok_text)
         )
 
     return
