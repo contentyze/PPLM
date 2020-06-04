@@ -313,7 +313,7 @@ def full_text_generation(
     if verbosity_level >= REGULAR:
         print("Using PPLM-BoW")
 
-    unpert_gen_tok_text, _, _ = generate_text_pplm(
+    unpert_gen_tok_text, _ = generate_text_pplm(
         model=model,
         tokenizer=tokenizer,
         context=context,
@@ -619,6 +619,7 @@ def generate_with_bow_feedback(
                 verbosity_level=verbosity_level
             )
             current_length *= 2
+            current_length = min(current_length, length)
             current_cond_text = tokenizer.decode(pert_gen_tok_texts[0].tolist()[0])
             current_tokenized_cond_text = tokenizer.encode(
                 tokenizer.bos_token + cond_text,
