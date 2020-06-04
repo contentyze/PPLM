@@ -721,8 +721,12 @@ def generate_with_bow_feedback(
         param.requires_grad = False
 
     # figure out conditioning text
+    raw_text = cond_text
+    while not raw_text:
+        print("Did you forget to add `--cond_text`? ")
+        raw_text = input("Model prompt >>> ")
     tokenized_cond_text = tokenizer.encode(
-        [tokenizer.bos_token],
+        tokenizer.bos_token + raw_text,
         add_special_tokens=False
     )
 
