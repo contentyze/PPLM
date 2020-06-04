@@ -598,6 +598,7 @@ def generate_with_bow_feedback(
             generate_unpert=False
         )
     elif strategy == 'exp':
+        prev_length = len(tokenized_cond_text)
         current_length = len(tokenized_cond_text) + 1
         current_cond_text = cond_text
         current_tokenized_cond_text = tokenized_cond_text
@@ -609,7 +610,7 @@ def generate_with_bow_feedback(
                 context=current_tokenized_cond_text,
                 device=device,
                 num_samples=1,
-                length=current_length,
+                length=current_length - prev_length,
                 stepsize=stepsize,
                 temperature=temperature,
                 top_k=top_k,
@@ -625,6 +626,7 @@ def generate_with_bow_feedback(
                 verbosity_level=verbosity_level,
                 generate_unpert=False,
             )
+            prev_length = current_length
             current_length *= 2
             current_length = min(current_length, length)
             current_cond_text = tokenizer.decode(pert_gen_tok_texts[0].tolist()[0])
