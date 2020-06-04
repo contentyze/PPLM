@@ -519,8 +519,13 @@ def generate_with_bow_feedback(
         seed=0,
         no_cuda=False,
         colorama=False,
-        verbosity='regular'
+        verbosity='regular',
+        strategy='base'
 ):
+    if strategy == 'exp' and num_samples > 1:
+        raise NotImplementedError(
+            "num_samples > 1 is not yet implemented for 'exp' strategy.")
+
     # set Random seed
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -561,31 +566,64 @@ def generate_with_bow_feedback(
     print()
 
     # generate unperturbed and perturbed texts
-
     # full_text_generation returns:
     # unpert_gen_tok_text, pert_gen_tok_texts, losses_in_time
-    unpert_gen_tok_text, pert_gen_tok_texts, _ = full_text_generation(
-        model=model,
-        cond_text=cond_text,
-        tokenizer=tokenizer,
-        context=tokenized_cond_text,
-        device=device,
-        num_samples=num_samples,
-        length=length,
-        stepsize=stepsize,
-        temperature=temperature,
-        top_k=top_k,
-        sample=sample,
-        num_iterations=num_iterations,
-        grad_length=grad_length,
-        horizon_length=horizon_length,
-        window_length=window_length,
-        decay=decay,
-        gamma=gamma,
-        gm_scale=gm_scale,
-        kl_scale=kl_scale,
-        verbosity_level=verbosity_level
-    )
+    if strategy == 'base':
+        unpert_gen_tok_text, pert_gen_tok_texts, _ = full_text_generation(
+            model=model,
+            cond_text=cond_text,
+            tokenizer=tokenizer,
+            context=tokenized_cond_text,
+            device=device,
+            num_samples=num_samples,
+            length=length,
+            stepsize=stepsize,
+            temperature=temperature,
+            top_k=top_k,
+            sample=sample,
+            num_iterations=num_iterations,
+            grad_length=grad_length,
+            horizon_length=horizon_length,
+            window_length=window_length,
+            decay=decay,
+            gamma=gamma,
+            gm_scale=gm_scale,
+            kl_scale=kl_scale,
+            verbosity_level=verbosity_level
+        )
+    elif strategy == 'exp':
+        current_length = len(tokenized_cond_text) + 1
+        current_cond_text = cond_text
+        current_tokenized_cond_text = tokenized_cond_text
+        while current_length < length:
+            unpert_gen_tok_text, pert_gen_tok_texts, _ = full_text_generation(
+                model=model,
+                cond_text=current_cond_text,
+                tokenizer=tokenizer,
+                context=current_tokenized_cond_text,
+                device=device,
+                num_samples=1,
+                length=current_length,
+                stepsize=stepsize,
+                temperature=temperature,
+                top_k=top_k,
+                sample=sample,
+                num_iterations=num_iterations,
+                grad_length=grad_length,
+                horizon_length=horizon_length,
+                window_length=window_length,
+                decay=decay,
+                gamma=gamma,
+                gm_scale=gm_scale,
+                kl_scale=kl_scale,
+                verbosity_level=verbosity_level
+            )
+            current_length *= 2
+            current_cond_text = tokenizer.decode(pert_gen_tok_texts[0].tolist()[0])
+            current_tokenized_cond_text = tokenizer.encode(
+                tokenizer.bos_token + cond_text,
+                add_special_tokens=False
+            )
 
     # untokenize unperturbed text
     unpert_gen_text = tokenizer.decode(unpert_gen_tok_text.tolist()[0])
@@ -703,7 +741,8 @@ if __name__ == '__main__':
             " * base = Default generation strategy.\n"
             "          Use tokens from cond_text as the bag-of-words.\n"
             " * exp = First generate 1 token, next 2, up to log_2(length).\n"
-            "         At each step use all tokens generated so far as BoW.\n")
+            "         At each step use all tokens generated so far as BoW.\n"
+            "         Currently it does not support num_samples > 1.")
 
     args = parser.parse_args()
     generate_with_bow_feedback(**vars(args))
