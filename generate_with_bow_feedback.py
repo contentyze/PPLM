@@ -629,7 +629,7 @@ def generate_with_bow_feedback(
             current_length = min(current_length, length)
             current_cond_text = tokenizer.decode(pert_gen_tok_texts[0].tolist()[0])
             current_tokenized_cond_text = tokenizer.encode(
-                tokenizer.bos_token + cond_text,
+                tokenizer.bos_token + current_cond_text,
                 add_special_tokens=False
             )
 
