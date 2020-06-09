@@ -15,10 +15,10 @@
 # limitations under the License.
 
 import argparse
-import json
+import logging
 import re
 from operator import add
-from typing import List, Optional, Tuple, Union
+from typing import List
 
 import numpy as np
 import torch
@@ -26,12 +26,10 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from tqdm import trange
 from transformers import GPT2Tokenizer
-from transformers.file_utils import cached_path
 from transformers.modeling_gpt2 import GPT2LMHeadModel
 
-from pplm_classification_head import ClassificationHead
+logger = logging.getLogger(__name__)
 
-PPLM_BOW = 1
 SMALL_CONST = 1e-15
 BIG_CONST = 1e10
 
@@ -96,7 +94,6 @@ def perturb_past(
         grad_norms=None,
         stepsize=0.01,
         one_hot_bows_vectors=None,
-        loss_type=0,
         num_iterations=3,
         horizon_length=1,
         window_length=0,
@@ -157,7 +154,7 @@ def perturb_past(
     new_accumulated_hidden = None
     for i in range(num_iterations):
         if verbosity_level >= VERBOSE:
-            print("Iteration ", i + 1)
+            logger.info('Iteration %d' % (i + 1))
         curr_perturbation = [
             to_var(torch.from_numpy(p_), requires_grad=True, device=device)
             for p_ in grad_accumulator
@@ -184,7 +181,7 @@ def perturb_past(
             loss += bow_loss
             loss_list.append(bow_loss)
         if verbosity_level >= VERY_VERBOSE:
-            print(" pplm_bow_loss:", loss.data.cpu().numpy())
+            logger.info(" pplm_bow_loss: " + str(loss.data.cpu().numpy()))
 
         kl_loss = 0.0
         if kl_scale > 0.0:
@@ -200,18 +197,18 @@ def perturb_past(
                 (corrected_probs * (corrected_probs / unpert_probs).log()).sum()
             )
             if verbosity_level >= VERY_VERBOSE:
-                print(' kl_loss', kl_loss.data.cpu().numpy())
+                logger.info(' kl_loss' + str(kl_loss.data.cpu().numpy()))
             loss += kl_loss
 
         loss_per_iter.append(loss.data.cpu().numpy())
         if verbosity_level >= VERBOSE:
-            print(' pplm_loss', (loss - kl_loss).data.cpu().numpy())
+            logger.info(' pplm_loss', str((loss - kl_loss).data.cpu().numpy()))
 
         # compute gradients
         loss.backward()
 
         # calculate gradient norms
-        if grad_norms is not None and loss_type == PPLM_BOW:
+        if grad_norms is not None:
             grad_norms = [
                 torch.max(grad_norms[index], torch.norm(p_.grad * window_mask))
                 for index, p_ in enumerate(curr_perturbation)
@@ -310,9 +307,8 @@ def full_text_generation(
     bow_indices = get_bag_of_words_indices(cond_text=cond_text,
                                            tokenizer=tokenizer)
 
-    loss_type = PPLM_BOW
     if verbosity_level >= REGULAR:
-        print("Using PPLM-BoW")
+        logger.info("Using PPLM-BoW")
 
     if generate_unpert:
         unpert_gen_tok_text, _ = generate_text_pplm(
@@ -339,7 +335,6 @@ def full_text_generation(
             device=device,
             perturb=True,
             bow_indices=bow_indices,
-            loss_type=loss_type,
             length=length,
             stepsize=stepsize,
             temperature=temperature,
@@ -375,7 +370,6 @@ def generate_text_pplm(
         device="cuda",
         perturb=True,
         bow_indices=None,
-        loss_type=0,
         length=100,
         stepsize=0.02,
         temperature=1.0,
@@ -450,7 +444,6 @@ def generate_text_pplm(
                     grad_norms=grad_norms,
                     stepsize=current_stepsize,
                     one_hot_bows_vectors=one_hot_bows_vectors,
-                    loss_type=loss_type,
                     num_iterations=num_iterations,
                     horizon_length=horizon_length,
                     window_length=window_length,
@@ -499,7 +492,7 @@ def generate_text_pplm(
             else torch.cat((output_so_far, last), dim=1)
         )
         if verbosity_level >= REGULAR:
-            print(tokenizer.decode(output_so_far.tolist()[0]))
+            logger.info(tokenizer.decode(output_so_far.tolist()[0]))
 
     return output_so_far, loss_in_time
 
@@ -566,9 +559,9 @@ def generate_with_bow_feedback(
         add_special_tokens=False
     )
 
-    print("= Prefix of sentence =")
-    print(tokenizer.decode(tokenized_cond_text))
-    print()
+    logger.info("= Prefix of sentence =")
+    logger.info(tokenizer.decode(tokenized_cond_text))
+    logger.info()
 
     # generate unperturbed and perturbed texts
     # full_text_generation returns:
@@ -667,21 +660,17 @@ def generate_with_bow_feedback(
             else:
                 pert_gen_text = tokenizer.decode(pert_gen_tok_text.tolist()[0])
 
-            print("= Perturbed generated text {} =".format(i + 1))
-            print(pert_gen_text)
-            print()
+            logger.info("= Perturbed generated text {} =".format(i + 1))
+            logger.info(pert_gen_text)
+            logger.info()
         except:
             pass
 
-        # keep the prefix, perturbed seq, original seq for each index
-        # generated_texts.append(
-        #     (tokenized_cond_text, pert_gen_tok_text, unpert_gen_tok_text)
-        # )
         generated_texts.append(
-            (tokenized_cond_text, pert_gen_tok_text)
+            tokenizer.decode(pert_gen_tok_text.tolist()[0])
         )
 
-    return
+    return generated_texts
 
 
 if __name__ == '__main__':
