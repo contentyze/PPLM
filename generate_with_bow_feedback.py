@@ -406,6 +406,7 @@ def generate_text_pplm(
         range_func = range(length)
 
     for i in range_func:
+        logging.info("Generated %d of %d tokens" % (i, length))
 
         # Get past/probs for current output, except for last word
         # Note that GPT takes 2 inputs: past + current_token
@@ -491,8 +492,8 @@ def generate_text_pplm(
             last if output_so_far is None
             else torch.cat((output_so_far, last), dim=1)
         )
-        if verbosity_level >= REGULAR:
-            logger.info(tokenizer.decode(output_so_far.tolist()[0]))
+        # if verbosity_level >= REGULAR:
+        #     logger.info(tokenizer.decode(output_so_far.tolist()[0]))
 
     return output_so_far, loss_in_time
 
