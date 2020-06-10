@@ -569,7 +569,7 @@ def generate_with_bow_feedback(
 
     logger.info("= Prefix of sentence =")
     logger.info(tokenizer.decode(tokenized_cond_text))
-    logger.info()
+    logger.info("\n")
 
     # generate unperturbed and perturbed texts
     # full_text_generation returns:
@@ -670,7 +670,7 @@ def generate_with_bow_feedback(
 
             logger.info("= Perturbed generated text {} =".format(i + 1))
             logger.info(pert_gen_text)
-            logger.info()
+            logger.info("\n")
         except:
             pass
 
