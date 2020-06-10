@@ -518,7 +518,8 @@ def generate_with_bow_feedback(
         no_cuda=False,
         colorama=False,
         verbosity='regular',
-        strategy='base'
+        strategy='base',
+        cache_dir=None,
 ):
     if strategy == 'exp' and num_samples > 1:
         raise NotImplementedError(
@@ -535,10 +536,17 @@ def generate_with_bow_feedback(
     device = "cuda" if torch.cuda.is_available() and not no_cuda else "cpu"
 
     # load pretrained model
-    model = GPT2LMHeadModel.from_pretrained(
-        pretrained_model,
-        output_hidden_states=True
-    )
+    if cache_dir:
+        model = GPT2LMHeadModel.from_pretrained(
+            pretrained_model,
+            cache_dir=cache_dir,
+            output_hidden_states=True
+        )
+    else:
+        model = GPT2LMHeadModel.from_pretrained(
+            pretrained_model,
+            output_hidden_states=True
+        )
     model.to(device)
     model.eval()
 
